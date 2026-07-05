@@ -4,9 +4,9 @@ from collections.abc import Callable
 from pandas import DataFrame
 from xtquant import (
     xtdata,
-    xtdatacenter as xtdc
+    # xtdatacenter as xtdc
 )
-from filelock import FileLock, Timeout
+# from filelock import FileLock, Timeout
 
 from vnpy.trader.setting import SETTINGS
 from vnpy.trader.constant import Exchange, Interval
@@ -14,7 +14,7 @@ from vnpy.trader.object import BarData, TickData, HistoryRequest
 from vnpy.trader.utility import ZoneInfo, get_file_path
 from vnpy.trader.datafeed import BaseDatafeed
 
-from .xt_config import VIP_ADDRESS_LIST, LISTEN_PORT
+# from .xt_config import VIP_ADDRESS_LIST, LISTEN_PORT
 
 
 INTERVAL_VT2XT: dict[Interval, str] = {
@@ -46,8 +46,8 @@ CHINA_TZ = ZoneInfo("Asia/Shanghai")
 class XtDatafeed(BaseDatafeed):
     """迅投研数据服务接口"""
 
-    lock_filename = "xt_lock"
-    lock_filepath = get_file_path(lock_filename)
+    # lock_filename = "xt_lock"
+    # lock_filepath = get_file_path(lock_filename)
 
     def __init__(self) -> None:
         """"""
@@ -55,7 +55,7 @@ class XtDatafeed(BaseDatafeed):
         self.password: str = SETTINGS["datafeed.password"]
         self.inited: bool = False
 
-        self.lock: FileLock | None = None
+        # self.lock: FileLock | None = None
 
         xtdata.enable_hello = False
 
@@ -78,35 +78,35 @@ class XtDatafeed(BaseDatafeed):
         self.inited = True
         return True
 
-    def get_lock(self) -> bool:
-        """获取文件锁，确保单例运行"""
-        self.lock = FileLock(self.lock_filepath)
-
-        try:
-            self.lock.acquire(timeout=1)
-            return True
-        except Timeout:
-            return False
-
-    def init_xtdc(self) -> None:
-        """初始化xtdc服务进程"""
-        if not self.get_lock():
-            return
-
-        # 设置token
-        xtdc.set_token(self.password)
-
-        # 设置连接池
-        xtdc.set_allow_optmize_address(VIP_ADDRESS_LIST)
-
-        # 开启使用期货真实夜盘时间
-        xtdc.set_future_realtime_mode(True)
-
-        # 执行初始化，但不启动默认58609端口监听
-        xtdc.init(False)
-
-        # 设置监听端口
-        xtdc.listen(port=LISTEN_PORT)
+    # def get_lock(self) -> bool:
+    #     """获取文件锁，确保单例运行"""
+    #     self.lock = FileLock(self.lock_filepath)
+    #
+    #     try:
+    #         self.lock.acquire(timeout=1)
+    #         return True
+    #     except Timeout:
+    #         return False
+    #
+    # def init_xtdc(self) -> None:
+    #     """初始化xtdc服务进程"""
+    #     if not self.get_lock():
+    #         return
+    #
+    #     # 设置token
+    #     xtdc.set_token(self.password)
+    #
+    #     # 设置连接池
+    #     xtdc.set_allow_optmize_address(VIP_ADDRESS_LIST)
+    #
+    #     # 开启使用期货真实夜盘时间
+    #     xtdc.set_future_realtime_mode(True)
+    #
+    #     # 执行初始化，但不启动默认58609端口监听
+    #     xtdc.init(False)
+    #
+    #     # 设置监听端口
+    #     xtdc.listen(port=LISTEN_PORT)
 
     def query_bar_history(self, req: HistoryRequest, output: Callable = print) -> list[BarData] | None:
         """查询K线数据"""

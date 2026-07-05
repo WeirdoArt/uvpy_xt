@@ -5,7 +5,7 @@ from typing import Any
 
 from xtquant import (
     xtdata,
-    xtdatacenter as xtdc
+    # xtdatacenter as xtdc
 )
 from xtquant import xtconstant
 from xtquant.xttrader import XtQuantTrader, XtQuantTraderCallback
@@ -20,7 +20,7 @@ from xtquant.xttype import (
     XtOrderError,
     XtCancelError
 )
-from filelock import FileLock, Timeout
+# from filelock import FileLock, Timeout
 
 from vnpy.event import EventEngine, EVENT_TIMER, Event
 from vnpy.trader.gateway import BaseGateway
@@ -47,11 +47,11 @@ from vnpy.trader.constant import (
 )
 from vnpy.trader.utility import (
     ZoneInfo,
-    get_file_path,
+    # get_file_path,
     round_to
 )
 
-from .xt_config import VIP_ADDRESS_LIST, LISTEN_PORT
+# from .xt_config import VIP_ADDRESS_LIST, LISTEN_PORT
 
 
 # 交易所映射
@@ -174,7 +174,8 @@ class XtGateway(BaseGateway):
 
         self.trading = setting["仿真交易"] == "是"
         if self.trading:
-            path: str = setting["QMT路径"] + "\\userdata"
+            # path: str = setting["QMT路径"] + "\\userdata"  # QMT用户数据路径（投研端：路径指定到安装目录下\userdata文件夹）
+            path: str = setting["QMT路径"] + "\\userdata_mini"  # QMT用户数据路径  （miniqmt：路径指定到安装目录下\userdata_mini文件夹）
 
             accountid: str = setting["资金账号"]
 
@@ -250,8 +251,8 @@ class XtGateway(BaseGateway):
 class XtMdApi:
     """行情API"""
 
-    lock_filename = "xt_lock"
-    lock_filepath = get_file_path(lock_filename)
+    # lock_filename = "xt_lock"
+    # lock_filepath = get_file_path(lock_filename)
 
     def __init__(self, gateway: XtGateway) -> None:
         """构造函数"""
@@ -261,83 +262,86 @@ class XtMdApi:
         self.inited: bool = False
         self.subscribed: set = set()
 
-        self.token: str = ""
+        # self.token: str = ""
         self.stock_active: bool = False
         self.futures_active: bool = False
         self.option_active: bool = False
 
+        self.code_list = []
+        self.full_tick_thread: Optional[Thread] = None
+        self.full_tick_running: bool = False
+
     def onMarketData(self, data: dict) -> None:
         """行情推送回调"""
-        for xt_symbol, buf in data.items():
-            for d in buf:
-                symbol, xt_exchange = xt_symbol.split(".")
-                exchange = EXCHANGE_XT2VT[xt_exchange]
+        for xt_symbol, d in data.items():
+            symbol, xt_exchange = xt_symbol.split(".")
+            exchange = EXCHANGE_XT2VT[xt_exchange]
 
-                tick: TickData = TickData(
-                    symbol=symbol,
-                    exchange=exchange,
-                    datetime=generate_datetime(d["time"]),
-                    volume=d["volume"],
-                    turnover=d["amount"],
-                    open_interest=d["openInt"],
-                    gateway_name=self.gateway_name
-                )
+            tick: TickData = TickData(
+                symbol=symbol,
+                exchange=exchange,
+                datetime=generate_datetime(d["time"]),
+                volume=d["volume"],
+                turnover=d["amount"],
+                open_interest=d["openInt"],
+                gateway_name=self.gateway_name
+            )
 
-                contract = symbol_contract_map[tick.vt_symbol]
-                tick.name = contract.name
+            contract = symbol_contract_map[tick.vt_symbol]
+            tick.name = contract.name
 
-                bp_data: list = d["bidPrice"]
-                ap_data: list = d["askPrice"]
-                bv_data: list = d["bidVol"]
-                av_data: list = d["askVol"]
+            bp_data: list = d["bidPrice"]
+            ap_data: list = d["askPrice"]
+            bv_data: list = d["bidVol"]
+            av_data: list = d["askVol"]
 
-                tick.bid_price_1 = round_to(bp_data[0], contract.pricetick)
-                tick.bid_price_2 = round_to(bp_data[1], contract.pricetick)
-                tick.bid_price_3 = round_to(bp_data[2], contract.pricetick)
-                tick.bid_price_4 = round_to(bp_data[3], contract.pricetick)
-                tick.bid_price_5 = round_to(bp_data[4], contract.pricetick)
+            tick.bid_price_1 = round_to(bp_data[0], contract.pricetick)
+            tick.bid_price_2 = round_to(bp_data[1], contract.pricetick)
+            tick.bid_price_3 = round_to(bp_data[2], contract.pricetick)
+            tick.bid_price_4 = round_to(bp_data[3], contract.pricetick)
+            tick.bid_price_5 = round_to(bp_data[4], contract.pricetick)
 
-                tick.ask_price_1 = round_to(ap_data[0], contract.pricetick)
-                tick.ask_price_2 = round_to(ap_data[1], contract.pricetick)
-                tick.ask_price_3 = round_to(ap_data[2], contract.pricetick)
-                tick.ask_price_4 = round_to(ap_data[3], contract.pricetick)
-                tick.ask_price_5 = round_to(ap_data[4], contract.pricetick)
+            tick.ask_price_1 = round_to(ap_data[0], contract.pricetick)
+            tick.ask_price_2 = round_to(ap_data[1], contract.pricetick)
+            tick.ask_price_3 = round_to(ap_data[2], contract.pricetick)
+            tick.ask_price_4 = round_to(ap_data[3], contract.pricetick)
+            tick.ask_price_5 = round_to(ap_data[4], contract.pricetick)
 
-                tick.bid_volume_1 = bv_data[0]
-                tick.bid_volume_2 = bv_data[1]
-                tick.bid_volume_3 = bv_data[2]
-                tick.bid_volume_4 = bv_data[3]
-                tick.bid_volume_5 = bv_data[4]
+            tick.bid_volume_1 = bv_data[0]
+            tick.bid_volume_2 = bv_data[1]
+            tick.bid_volume_3 = bv_data[2]
+            tick.bid_volume_4 = bv_data[3]
+            tick.bid_volume_5 = bv_data[4]
 
-                tick.ask_volume_1 = av_data[0]
-                tick.ask_volume_2 = av_data[1]
-                tick.ask_volume_3 = av_data[2]
-                tick.ask_volume_4 = av_data[3]
-                tick.ask_volume_5 = av_data[4]
+            tick.ask_volume_1 = av_data[0]
+            tick.ask_volume_2 = av_data[1]
+            tick.ask_volume_3 = av_data[2]
+            tick.ask_volume_4 = av_data[3]
+            tick.ask_volume_5 = av_data[4]
 
-                tick.last_price = round_to(d["lastPrice"], contract.pricetick)
-                tick.open_price = round_to(d["open"], contract.pricetick)
-                tick.high_price = round_to(d["high"], contract.pricetick)
-                tick.low_price = round_to(d["low"], contract.pricetick)
-                tick.pre_close = round_to(d["lastClose"], contract.pricetick)
+            tick.last_price = round_to(d["lastPrice"], contract.pricetick)
+            tick.open_price = round_to(d["open"], contract.pricetick)
+            tick.high_price = round_to(d["high"], contract.pricetick)
+            tick.low_price = round_to(d["low"], contract.pricetick)
+            tick.pre_close = round_to(d["lastClose"], contract.pricetick)
 
-                if tick.vt_symbol in symbol_limit_map:
-                    tick.limit_up, tick.limit_down = symbol_limit_map[tick.vt_symbol]
+            if tick.vt_symbol in symbol_limit_map:
+                tick.limit_up, tick.limit_down = symbol_limit_map[tick.vt_symbol]
 
-                # 判断收盘状态
-                tick.extra = {
-                    "raw": d,
-                    "market_closed": False,
-                }
+            # 判断收盘状态
+            tick.extra = {
+                "raw": d,
+                "market_closed": False,
+            }
 
-                # 非衍生品可以通过openInt字段判断证券状态
-                if contract.product not in {Product.FUTURES, Product.OPTION}:
-                    tick.extra["market_closed"] = d["openInt"] == 15
-                # 衍生品该字段为持仓量，需要通过结算价判断
-                elif d["settlementPrice"] > 0:
-                    tick.extra["market_closed"] = True
+            # 非衍生品可以通过openInt字段判断证券状态
+            if contract.product not in {Product.FUTURES, Product.OPTION}:
+                tick.extra["market_closed"] = d["openInt"] == 15
+            # 衍生品该字段为持仓量，需要通过结算价判断
+            elif d["settlementPrice"] > 0:
+                tick.extra["market_closed"] = True
 
-                self.gateway.on_tick(tick)
+            self.gateway.on_tick(tick)
 
     def connect(
         self,
@@ -349,7 +353,7 @@ class XtMdApi:
         """连接"""
         self.gateway.write_log("开始启动行情服务，请稍等")
 
-        self.token = token
+        # self.token = token
         self.stock_active = stock_active
         self.futures_active = futures_active
         self.option_active = option_active
@@ -359,7 +363,7 @@ class XtMdApi:
             return
 
         try:
-            self.init_xtdc()
+            # self.init_xtdc()
 
             # 尝试查询合约信息，确认连接成功
             xtdata.get_instrument_detail("000001.SZ")
@@ -373,35 +377,35 @@ class XtMdApi:
 
         self.query_contracts()
 
-    def get_lock(self) -> bool:
-        """获取文件锁，确保单例运行"""
-        self.lock = FileLock(self.lock_filepath)
-
-        try:
-            self.lock.acquire(timeout=1)
-            return True
-        except Timeout:
-            return False
-
-    def init_xtdc(self) -> None:
-        """初始化xtdc服务进程"""
-        if not self.get_lock():
-            return
-
-        # 设置token
-        xtdc.set_token(self.token)
-
-        # 设置连接池
-        xtdc.set_allow_optmize_address(VIP_ADDRESS_LIST)
-
-        # 开启使用期货真实夜盘时间
-        xtdc.set_future_realtime_mode(True)
-
-        # 执行初始化，但不启动默认58609端口监听
-        xtdc.init(False)
-
-        # 设置监听端口
-        xtdc.listen(port=LISTEN_PORT)
+    # def get_lock(self) -> bool:
+    #     """获取文件锁，确保单例运行"""
+    #     self.lock = FileLock(self.lock_filepath)
+    #
+    #     try:
+    #         self.lock.acquire(timeout=1)
+    #         return True
+    #     except Timeout:
+    #         return False
+    #
+    # def init_xtdc(self) -> None:
+    #     """初始化xtdc服务进程"""
+    #     if not self.get_lock():
+    #         return
+    #
+    #     # 设置token
+    #     xtdc.set_token(self.token)
+    #
+    #     # 设置连接池
+    #     xtdc.set_allow_optmize_address(VIP_ADDRESS_LIST)
+    #
+    #     # 开启使用期货真实夜盘时间
+    #     xtdc.set_future_realtime_mode(True)
+    #
+    #     # 执行初始化，但不启动默认58609端口监听
+    #     xtdc.init(False)
+    #
+    #     # 设置监听端口
+    #     xtdc.listen(port=LISTEN_PORT)
 
     def query_contracts(self) -> None:
         """查询合约信息"""
@@ -413,6 +417,8 @@ class XtMdApi:
 
         if self.option_active:
             self.query_option_contracts()
+
+        self.auto_subscribe()  # 自动订阅全市场
 
         self.gateway.write_log("合约信息查询成功")
 
@@ -428,7 +434,7 @@ class XtMdApi:
         ]
 
         for i in markets:
-            names: list = xtdata.get_stock_list_in_sector(i)
+            names: list = xtdata.get_stock_list_in_sector(i)  # get_stock_list_in_sector 获取板块成分股列表
             xt_symbols.extend(names)
 
         for xt_symbol in xt_symbols:
@@ -457,7 +463,7 @@ class XtMdApi:
                 continue
 
             # 生成并推送合约信息
-            data: dict = xtdata.get_instrument_detail(xt_symbol)
+            data: dict = xtdata.get_instrument_detail(xt_symbol)  # 获取合约基础信息数据（该信息每交易日9点更新）
             if data is None:
                 self.gateway.write_log(f"合约{xt_symbol}信息查询失败")
                 continue
@@ -567,6 +573,7 @@ class XtMdApi:
 
                 self.gateway.on_contract(contract)
 
+    # 由auto_subscribe全市场自动订阅, 此处忽略单个订阅
     def subscribe(self, req: SubscribeRequest) -> None:
         """订阅行情"""
         if req.vt_symbol not in symbol_contract_map:
@@ -579,8 +586,63 @@ class XtMdApi:
         xt_symbol: str = req.symbol + "." + xt_exchange
 
         if xt_symbol not in self.subscribed:
-            xtdata.subscribe_quote(stock_code=xt_symbol, period="tick", callback=self.onMarketData)
+            xtdata.subscribe_quote(stock_code=xt_symbol, period="tick", callback=self.onMarketData)  # 订阅单股行情（官方提示：单股订阅数量不超过50。如果订阅数较多，建议直接使用全推数据）
             self.subscribed.add(xt_symbol)
+
+    def auto_subscribe(self) -> None:
+        """自动订阅全市场行情"""
+        EXCHANGE_STR2VT = {exchange.name: exchange for exchange in Exchange}
+
+        for vt_symbol, d in symbol_contract_map.items():
+            symbol, vt_exchange_str = vt_symbol.split(".")
+            vt_exchange = EXCHANGE_STR2VT[vt_exchange_str]
+            exchange = EXCHANGE_VT2XT[vt_exchange]
+            self.code_list.append(symbol + "." + exchange)
+
+        # self.code_list = self.code_list[:2500]  # TODO 官方UI界面在订阅3000个标的时会卡死，因此将代码列表限制在前2500个
+
+        if 0:
+            # 启动全市场行情线程（全推截面）
+            self.start_full_tick_thread()
+        else:
+            # 全推增量
+            swq = xtdata.subscribe_whole_quote(code_list=self.code_list, callback=self.onMarketData)
+            if swq > 0:
+                self.gateway.write_log("全市场行情自动订阅成功")
+            elif swq == -1:
+                self.gateway.write_log("全市场行情自动订阅失败")
+
+    def start_full_tick_thread(self):
+        """启动全市场行情推送线程"""
+        if self.full_tick_running:
+            return
+
+        self.full_tick_running = True
+        self.full_tick_thread = Thread(target=self.run_full_tick_loop, daemon=True)
+        self.full_tick_thread.start()
+        self.gateway.write_log("全市场行情推送线程已启动")
+
+    def run_full_tick_loop(self):
+        """全市场行情推送循环"""
+        while self.full_tick_running:
+            try:
+                if self.code_list:
+                    # 获取全市场行情
+                    snapshot = xtdata.get_full_tick(code_list=self.code_list)
+                    # 推送行情数据
+                    self.onMarketData(snapshot)
+            except Exception as e:
+                self.gateway.write_log(f"全市场行情推送异常: {str(e)}")
+
+            # 休眠3秒
+            time.sleep(3)
+
+    def stop_full_tick_thread(self):
+        """停止全市场行情推送线程"""
+        self.full_tick_running = False
+        if self.full_tick_thread:
+            self.full_tick_thread.join()
+        self.gateway.write_log("全市场行情推送线程已停止")
 
     def close(self) -> None:
         """关闭连接"""

@@ -273,75 +273,91 @@ class XtMdApi:
 
     def onMarketData(self, data: dict) -> None:
         """行情推送回调"""
-        for xt_symbol, d in data.items():
+        
+        for xt_symbol, buf in data.items():
             symbol, xt_exchange = xt_symbol.split(".")
             exchange = EXCHANGE_XT2VT[xt_exchange]
 
-            tick: TickData = TickData(
-                symbol=symbol,
-                exchange=exchange,
-                datetime=generate_datetime(d["time"]),
-                volume=d["volume"],
-                turnover=d["amount"],
-                open_interest=d["openInt"],
-                gateway_name=self.gateway_name
-            )
+            # 分支1：当前value是列表（旧格式）
+            if isinstance(buf, list):
+                buf_list = buf
+            # 分支2：当前value是字典（你现在的新格式），包装成列表统一处理
+            elif isinstance(buf, dict):
+                buf_list = [buf]
+            # 脏数据直接跳过
+            else:
+                print(f"未知数据类型，跳过{xt_symbol}: {type(buf)}")
+                continue
 
-            contract = symbol_contract_map[tick.vt_symbol]
-            tick.name = contract.name
+            # 统一遍历tick
+            for d in buf_list:
+                if not isinstance(d, dict):
+                    continue
+                tick = TickData(
+                    symbol=symbol,
+                    exchange=exchange,
+                    datetime=generate_datetime(d["time"]),
+                    volume=d["volume"],
+                    turnover=d["amount"],
+                    open_interest=d["openInt"],
+                    gateway_name=self.gateway_name
+                )
 
-            bp_data: list = d["bidPrice"]
-            ap_data: list = d["askPrice"]
-            bv_data: list = d["bidVol"]
-            av_data: list = d["askVol"]
+                contract = symbol_contract_map[tick.vt_symbol]
+                tick.name = contract.name
 
-            tick.bid_price_1 = round_to(bp_data[0], contract.pricetick)
-            tick.bid_price_2 = round_to(bp_data[1], contract.pricetick)
-            tick.bid_price_3 = round_to(bp_data[2], contract.pricetick)
-            tick.bid_price_4 = round_to(bp_data[3], contract.pricetick)
-            tick.bid_price_5 = round_to(bp_data[4], contract.pricetick)
+                bp_data: list = d["bidPrice"]
+                ap_data: list = d["askPrice"]
+                bv_data: list = d["bidVol"]
+                av_data: list = d["askVol"]
 
-            tick.ask_price_1 = round_to(ap_data[0], contract.pricetick)
-            tick.ask_price_2 = round_to(ap_data[1], contract.pricetick)
-            tick.ask_price_3 = round_to(ap_data[2], contract.pricetick)
-            tick.ask_price_4 = round_to(ap_data[3], contract.pricetick)
-            tick.ask_price_5 = round_to(ap_data[4], contract.pricetick)
+                tick.bid_price_1 = round_to(bp_data[0], contract.pricetick)
+                tick.bid_price_2 = round_to(bp_data[1], contract.pricetick)
+                tick.bid_price_3 = round_to(bp_data[2], contract.pricetick)
+                tick.bid_price_4 = round_to(bp_data[3], contract.pricetick)
+                tick.bid_price_5 = round_to(bp_data[4], contract.pricetick)
 
-            tick.bid_volume_1 = bv_data[0]
-            tick.bid_volume_2 = bv_data[1]
-            tick.bid_volume_3 = bv_data[2]
-            tick.bid_volume_4 = bv_data[3]
-            tick.bid_volume_5 = bv_data[4]
+                tick.ask_price_1 = round_to(ap_data[0], contract.pricetick)
+                tick.ask_price_2 = round_to(ap_data[1], contract.pricetick)
+                tick.ask_price_3 = round_to(ap_data[2], contract.pricetick)
+                tick.ask_price_4 = round_to(ap_data[3], contract.pricetick)
+                tick.ask_price_5 = round_to(ap_data[4], contract.pricetick)
 
-            tick.ask_volume_1 = av_data[0]
-            tick.ask_volume_2 = av_data[1]
-            tick.ask_volume_3 = av_data[2]
-            tick.ask_volume_4 = av_data[3]
-            tick.ask_volume_5 = av_data[4]
+                tick.bid_volume_1 = bv_data[0]
+                tick.bid_volume_2 = bv_data[1]
+                tick.bid_volume_3 = bv_data[2]
+                tick.bid_volume_4 = bv_data[3]
+                tick.bid_volume_5 = bv_data[4]
 
-            tick.last_price = round_to(d["lastPrice"], contract.pricetick)
-            tick.open_price = round_to(d["open"], contract.pricetick)
-            tick.high_price = round_to(d["high"], contract.pricetick)
-            tick.low_price = round_to(d["low"], contract.pricetick)
-            tick.pre_close = round_to(d["lastClose"], contract.pricetick)
+                tick.ask_volume_1 = av_data[0]
+                tick.ask_volume_2 = av_data[1]
+                tick.ask_volume_3 = av_data[2]
+                tick.ask_volume_4 = av_data[3]
+                tick.ask_volume_5 = av_data[4]
 
-            if tick.vt_symbol in symbol_limit_map:
-                tick.limit_up, tick.limit_down = symbol_limit_map[tick.vt_symbol]
+                tick.last_price = round_to(d["lastPrice"], contract.pricetick)
+                tick.open_price = round_to(d["open"], contract.pricetick)
+                tick.high_price = round_to(d["high"], contract.pricetick)
+                tick.low_price = round_to(d["low"], contract.pricetick)
+                tick.pre_close = round_to(d["lastClose"], contract.pricetick)
 
-            # 判断收盘状态
-            tick.extra = {
-                "raw": d,
-                "market_closed": False,
-            }
+                if tick.vt_symbol in symbol_limit_map:
+                    tick.limit_up, tick.limit_down = symbol_limit_map[tick.vt_symbol]
 
-            # 非衍生品可以通过openInt字段判断证券状态
-            if contract.product not in {Product.FUTURES, Product.OPTION}:
-                tick.extra["market_closed"] = d["openInt"] == 15
-            # 衍生品该字段为持仓量，需要通过结算价判断
-            elif d["settlementPrice"] > 0:
-                tick.extra["market_closed"] = True
+                # 判断收盘状态
+                tick.extra = {
+                    "raw": d,
+                    "market_closed": False,
+                }
 
-            self.gateway.on_tick(tick)
+                # 非衍生品可以通过openInt字段判断证券状态
+                if contract.product not in {Product.FUTURES, Product.OPTION}:
+                    tick.extra["market_closed"] = d["openInt"] == 15
+                # 衍生品该字段为持仓量，需要通过结算价判断
+                elif d["settlementPrice"] > 0:
+                    tick.extra["market_closed"] = True
+
+                self.gateway.on_tick(tick)
 
     def connect(
         self,
@@ -418,7 +434,7 @@ class XtMdApi:
         if self.option_active:
             self.query_option_contracts()
 
-        self.auto_subscribe()  # 自动订阅全市场
+        # self.auto_subscribe()  # 自动订阅全市场
 
         self.gateway.write_log("合约信息查询成功")
 

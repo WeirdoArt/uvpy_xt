@@ -840,7 +840,8 @@ class XtTdApi(XtQuantTraderCallback):
                 volume=xt_position.volume,
                 yd_volume=xt_position.can_use_volume,
                 frozen=xt_position.volume - xt_position.can_use_volume,
-                price=xt_position.open_price,
+                price=round(xt_position.open_price, 2),
+                pnl=round(xt_position.market_value - xt_position.avg_price * xt_position.volume, 2),
                 gateway_name=self.gateway_name
             )
 

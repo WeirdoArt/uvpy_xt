@@ -257,6 +257,22 @@ class XtDatafeed(BaseDatafeed):
 
         return history
 
+    def query_sector_list(self, output: Callable = print) -> list[str]:
+        """查询板块列表"""
+        if not self.inited:
+            n: bool = self.init(output)
+            if not n:
+                return []
+        return xtdata.get_sector_list()
+
+    def query_stock_list_in_sector(self, sector_name: str, output: Callable = print) -> list[str]:
+        """查询指定板块的成分股列表"""
+        if not self.inited:
+            n: bool = self.init(output)
+            if not n:
+                return []
+        return xtdata.get_stock_list_in_sector(sector_name)
+
 
 def get_history_df(req: HistoryRequest, output: Callable = print) -> DataFrame:
     """获取历史数据DataFrame"""

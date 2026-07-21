@@ -98,8 +98,8 @@ DIRECTION_VT2XT: dict[tuple, str] = {
 DIRECTION_XT2VT: dict[str, tuple] = {v: k for k, v in DIRECTION_VT2XT.items()}
 
 POSDIRECTION_XT2VT: dict[int, Direction] = {
-    xtconstant.DIRECTION_FLAG_BUY: Direction.LONG,
-    xtconstant.DIRECTION_FLAG_SELL: Direction.SHORT
+    xtconstant.STOCK_BUY: Direction.LONG,
+    xtconstant.STOCK_SELL: Direction.SHORT
 }
 
 # 委托类型映射
